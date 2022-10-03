@@ -11,6 +11,8 @@ struct Process
   int cpu_time;
   int io_time;
   int arrival_time;
+  int remain_cpu;
+  int remain_io;
   int state;
 };
 
@@ -26,6 +28,9 @@ struct Process *readInput(FILE *fp, int *count)
   {
     fscanf(fp, "%d %d %d %d\n", &processes[i].pid, &processes[i].cpu_time, &processes[i].io_time, &processes[i].arrival_time);
     processes[i].state = 0;
+    processes[i].cpu_time += processes[i].cpu_time % 2;
+    processes[i].remain_cpu = processes[i].cpu_time;
+    processes[i].remain_io = processes[i].io_time;
   }
 
   return processes;
@@ -49,84 +54,42 @@ void fcfs(struct Process *processes, int count, char *out_filename)
   int *ready_queue = (int *)malloc(sizeof(int) * count);
   int que_count = 0;
 
-  while (time < 10)
+  while (1)
   {
     // check arrival
     for (int i = 0; i < count; i++)
     {
-      if (processes[i].state == 0 && processes[i].arrival_time == time)
+      if (processes[i].arrival_time == time)
       {
         processes[i].state = 1;
-        ready_queue[que_count] = processes[i].pid;
-        que_count++;
-      }
-      else if (processes[i].state == 3 && processes[i].io_time == 0)
-      {
-        processes[i].state = 1;
-        ready_queue[que_count] = processes[i].pid;
+        ready_queue[count] = processes[i].pid;
         que_count++;
       }
     }
 
-    // check running processe is finished
-    if (running_pid != -1)
+    if (running_pid == -1 && que_count > 0)
     {
-      if (processes[running_pid].cpu_time == 0)
-      {
-        processes[running_pid].state = 4;
-        finished_count += 1;
-        running_pid = -1;
-      }
+      running_pid = ready_queue[0];
+      shiftQueue(ready_queue, &que_count);
+      processes[running_pid].state = 2;
     }
-
-    // check running need IO
-    if (running_pid != -1)
+    else
     {
-      if (processes[running_pid].io_time > 0)
+      if (processes[running_pid].remain_cpu == processes[running_pid].cpu_time / 2)
       {
         processes[running_pid].state = 3;
         running_pid = -1;
       }
     }
 
-    // set running process
     if (running_pid == -1)
     {
-      running_pid = ready_queue[0];
-      shiftQueue(ready_queue, &que_count);
+      // running process not exist
     }
-
-    // cpu time calc
-    if (running_pid != -1)
+    else
     {
-      processes[running_pid].cpu_time -= 1;
+      // running process exist
     }
-
-    // io calc
-    for (int i = 0; i < count; i++)
-    {
-      if (processes[i].state == 3)
-      {
-        processes[i].io_time -= 1;
-      }
-    }
-
-    if (finished_count == count)
-    {
-      break;
-    }
-
-    printf("%d ", time);
-    for (int i = 0; i < count; i++)
-    {
-      if (processes[i].state != 0 && processes[i].state != 4)
-      {
-        printf("%d:%s ", processes[i].pid, state_string[processes[i].state]);
-      }
-    }
-    printf("\n");
-
-    time++;
   }
 }
 
