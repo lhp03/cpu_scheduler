@@ -4,7 +4,6 @@
 3 0:running 1:blocked
 4 1:running 
 
-
 Finishing time:4 
 CPU utilization: 0.80
 Turnaround process 0: 4 
