@@ -62,13 +62,16 @@ void fcfs(struct Process *processes, int count, char *out_filename)
     // check arrival
     for (int i = 0; i < count; i++)
     {
-      if (processes[i].arrival_time == time)
+      if (processes[i].arrival_time == time && processes[i].state == 0)
       {
         processes[i].state = 1;
         ready_queue[count] = processes[i].pid;
-        que_count++;
+        que_count += 1;
       }
     }
+
+    
+    printf("que count : %d, pid:%d\n", que_count, ready_queue[0]);
 
     if (running_pid == -1 && que_count > 0)
     {
@@ -89,11 +92,16 @@ void fcfs(struct Process *processes, int count, char *out_filename)
       processes[running_pid].remain_cpu -= 1;
     }
 
+    printf("running pid :%d \n", running_pid);
     //io burst
     for(int i =0; i < count; i++) {
       if(processes[i].state == 3) {
         processes[i].remain_io -= 1;
       }
+    }
+
+    for(int i = 0; i < count; i++) {
+      printf("%d %d %d %d %d %d %d\n", processes[i].pid, processes[i].cpu_time, processes[i].io_time, processes[i].arrival_time, processes[i].remain_cpu, processes[i].remain_io, processes[i].state);
     }
 
     printf("%d ", time);
@@ -102,28 +110,28 @@ void fcfs(struct Process *processes, int count, char *out_filename)
         printf("%d:%s ", processes[i].pid, state_string[processes[i].state]);
       }
     }
+    printf("\nqueue count = %d\n", que_count);
     printf("\n");
 
     if(running_pid != -1 && processes[running_pid].remain_cpu == processes[running_pid].cpu_time / 2) {
+      printf("need IO\n");
       processes[running_pid].state = 3;
-      ready_queue[count] = running_pid;
-      count += 1;
       running_pid = -1;
     } else if (running_pid != -1 && processes[running_pid].remain_cpu == 0) {
+      printf("finished\n");
       finished_count+= 1;
       processes[running_pid].state =4;
       running_pid = -1;
-    } else {
-      for(int i =0; i < count; i++) {
-        if(processes[i].state == 3 && processes[i].remain_io == 0) {
-          ready_queue[que_count] = processes[i].pid;
-          que_count++;
-          processes[i].state = 1;
-        }
-      }
     }
 
-
+    for(int i =0; i < count; i++) {
+      if(processes[i].state == 3 && processes[i].remain_io == 0) {
+        printf("pid %d io end\n", i);
+          ready_queue[que_count] = processes[i].pid;
+          que_count += 1;
+          processes[i].state = 1;
+        }
+    }
 
     time++;
 
