@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-// state 0: not arrived, 1: ready, 2: running, 3: blocked 4: finished
+// state 0: not arrived, 1: ready, 2: running, 3: blocked 4: terminated
 struct Process
 {
   int pid;
@@ -17,7 +17,7 @@ struct Process
   int turn_around;
 };
 
-const char *state_string[5] = {"not arrived", "ready", "running", "blocked", "finished"};
+const char *state_string[5] = {"not arrived", "ready", "running", "blocked", "terminated"};
 
 struct Process *readInput(FILE *fp, int *count)
 {
@@ -49,22 +49,24 @@ void shiftQueue(int *queue, int *que_count)
 
 void fcfs(struct Process *processes, int count, char *out_filename)
 {
+  FILE *f_out = fopen(out_filename, "w");
+
   int time = 0;
   int idle_time = 0;
   int running_pid = -1;
-  int finished_count = 0;
+  int terminated_count = 0;
 
   int *ready_queue = (int *)malloc(sizeof(int) * count);
   int que_count = 0;
 
   while (1)
   {
-    if (finished_count == count)
+    if (terminated_count == count)
     {
       time--;
       break;
     }
-    // check arrival
+    // check state ready
     for (int i = 0; i < count; i++)
     {
       if (processes[i].arrival_time == time && processes[i].state == 0)
@@ -72,6 +74,13 @@ void fcfs(struct Process *processes, int count, char *out_filename)
         processes[i].state = 1;
         ready_queue[que_count] = processes[i].pid;
         que_count += 1;
+      }
+
+      if (processes[i].state == 3 && processes[i].remain_io == 0)
+      {
+        ready_queue[que_count] = processes[i].pid;
+        que_count += 1;
+        processes[i].state = 1;
       }
     }
 
@@ -102,7 +111,7 @@ void fcfs(struct Process *processes, int count, char *out_filename)
       }
     }
 
-    // add turnaround time except not arrived and finished processes
+    // add turnaround time except not arrived and terminated processes
     for (int i = 0; i < count; i++)
     {
       if (processes[i].state != 0 && processes[i].state != 4)
@@ -111,20 +120,23 @@ void fcfs(struct Process *processes, int count, char *out_filename)
       }
     }
 
+    // print cycle
     printf("%d ", time);
-
+    fprintf(f_out, "%d ", time);
     for (int i = 0; i < count; i++)
     {
       if (processes[i].state != 0 && processes[i].state != 4)
       {
         printf("%d:%-7s ", processes[i].pid, state_string[processes[i].state]);
+        fprintf(f_out, "%d:%-7s ", processes[i].pid, state_string[processes[i].state]);
       }
     }
     printf("\n");
+    fprintf(f_out, "\n");
 
     if (running_pid != -1 && processes[running_pid].remain_cpu == 0)
     {
-      finished_count += 1;
+      terminated_count += 1;
       processes[running_pid].state = 4;
       running_pid = -1;
     }
@@ -134,44 +146,40 @@ void fcfs(struct Process *processes, int count, char *out_filename)
       running_pid = -1;
     }
 
-    for (int i = 0; i < count; i++)
-    {
-      if (processes[i].state == 3 && processes[i].remain_io == 0)
-      {
-        ready_queue[que_count] = processes[i].pid;
-        que_count += 1;
-        processes[i].state = 1;
-      }
-    }
-
     time++;
   }
 
+  // print analytics
   printf("\nFinishing time: %d\n", time);
-  printf("CPU utilization: %.2f\n", (float)((time + 1 - idle_time) / (time + 1)));
+  printf("CPU utilization: %.2f\n", (float)(time + 1 - idle_time) / (time + 1));
+  fprintf(f_out, "\nFinishing time: %d\n", time);
+  fprintf(f_out, "CPU utilization: %.2f\n", (float)(time + 1 - idle_time) / (time + 1));
 
   for (int i = 0; i < count; i++)
   {
     printf("Turnaround process %d: %d\n", processes[i].pid, processes[i].turn_around);
+    fprintf(f_out, "Turnaround process %d: %d\n", processes[i].pid, processes[i].turn_around);
   }
 
   free(ready_queue);
+  fclose(f_out);
 }
 
 void rr(struct Process *processes, int count, char *out_filename)
 {
+  FILE *f_out = fopen(out_filename, "w");
   int time = 0;
   int idle_time = 0;
   int running_pid = -1;
   int running_cycle = 0;
-  int finished_count = 0;
+  int terminated_count = 0;
 
   int *ready_queue = (int *)malloc(sizeof(int) * count);
   int que_count = 0;
 
   while (1)
   {
-    if (finished_count == count)
+    if (terminated_count == count)
     {
       time--;
       break;
@@ -185,6 +193,23 @@ void rr(struct Process *processes, int count, char *out_filename)
         processes[i].state = 1;
         ready_queue[que_count] = processes[i].pid;
         que_count += 1;
+      }
+
+      if (processes[i].state == 3 && processes[i].remain_io == 0)
+      {
+        ready_queue[que_count] = processes[i].pid;
+        que_count += 1;
+        processes[i].state = 1;
+      }
+
+      if (running_pid != -1 && running_cycle == 2)
+      {
+        // ran for 2cycles
+        ready_queue[que_count] = running_pid;
+        que_count++;
+        processes[running_pid].state = 1;
+        running_pid = -1;
+        running_cycle = 0;
       }
     }
 
@@ -224,7 +249,7 @@ void rr(struct Process *processes, int count, char *out_filename)
       }
     }
 
-    // add turnaround time except not arrived and finished processes
+    // add turnaround time except not arrived and terminated processes
     for (int i = 0; i < count; i++)
     {
       if (processes[i].state != 0 && processes[i].state != 4)
@@ -233,21 +258,24 @@ void rr(struct Process *processes, int count, char *out_filename)
       }
     }
 
-    // print cycle state
+    // print cycle
     printf("%d ", time);
+    fprintf(f_out, "%d ", time);
     for (int i = 0; i < count; i++)
     {
       if (processes[i].state != 0 && processes[i].state != 4)
       {
         printf("%d:%-7s ", processes[i].pid, state_string[processes[i].state]);
+        fprintf(f_out, "%d:%-7s ", processes[i].pid, state_string[processes[i].state]);
       }
     }
     printf("\n");
+    fprintf(f_out, "\n");
 
     if (running_pid != -1 && processes[running_pid].remain_cpu == 0)
     {
-      // process finished
-      finished_count += 1;
+      // process terminated
+      terminated_count += 1;
       processes[running_pid].state = 4;
       running_pid = -1;
       running_cycle = 0;
@@ -259,57 +287,45 @@ void rr(struct Process *processes, int count, char *out_filename)
       running_pid = -1;
       running_cycle = 0;
     }
-    else if (running_pid != -1 && running_cycle == 2)
-    {
-      // ran for 2cycles
-      ready_queue[que_count] = running_pid;
-      que_count++;
-      processes[running_pid].state = 1;
-      running_pid = -1;
-      running_cycle = 0;
-    }
-
-    for (int i = 0; i < count; i++)
-    {
-      if (processes[i].state == 3 && processes[i].remain_io == 0)
-      {
-        ready_queue[que_count] = processes[i].pid;
-        que_count += 1;
-        processes[i].state = 1;
-      }
-    }
 
     time++;
   }
+
+  // print analytics
   printf("\nFinishing time: %d\n", time);
-  printf("CPU utilization: %.2f\n", (float)((time + 1 - idle_time) / (time + 1)));
+  printf("CPU utilization: %.2f\n", (float)(time + 1 - idle_time) / (time + 1));
+  fprintf(f_out, "\nFinishing time: %d\n", time);
+  fprintf(f_out, "CPU utilization: %.2f\n", (float)(time + 1 - idle_time) / (time + 1));
 
   for (int i = 0; i < count; i++)
   {
     printf("Turnaround process %d: %d\n", processes[i].pid, processes[i].turn_around);
+    fprintf(f_out, "Turnaround process %d: %d\n", processes[i].pid, processes[i].turn_around);
   }
 
   free(ready_queue);
+  fclose(f_out);
 }
 
 void sjf(struct Process *processes, int count, char *out_filename)
 {
+  FILE *f_out = fopen(out_filename, "w");
   int time = 0;
   int idle_time = 0;
   int running_pid = -1;
-  int finished_count = 0;
+  int terminated_count = 0;
 
   int *ready_queue = (int *)malloc(sizeof(int) * count);
   int que_count = 0;
 
   while (1)
   {
-    if (finished_count == count)
+    if (terminated_count == count)
     {
       time--;
       break;
     }
-    // check arrival
+    // check state ready
     for (int i = 0; i < count; i++)
     {
       if (processes[i].arrival_time == time && processes[i].state == 0)
@@ -317,6 +333,13 @@ void sjf(struct Process *processes, int count, char *out_filename)
         processes[i].state = 1;
         ready_queue[que_count] = processes[i].pid;
         que_count += 1;
+      }
+
+      if (processes[i].state == 3 && processes[i].remain_io == 0)
+      {
+        ready_queue[que_count] = processes[i].pid;
+        que_count += 1;
+        processes[i].state = 1;
       }
     }
 
@@ -376,7 +399,7 @@ void sjf(struct Process *processes, int count, char *out_filename)
       }
     }
 
-    // add turnaround time except not arrived and finished processes
+    // add turnaround time except not arrived and terminated processes
     for (int i = 0; i < count; i++)
     {
       if (processes[i].state != 0 && processes[i].state != 4)
@@ -385,20 +408,23 @@ void sjf(struct Process *processes, int count, char *out_filename)
       }
     }
 
+    // print cycle
     printf("%d ", time);
-
+    fprintf(f_out, "%d ", time);
     for (int i = 0; i < count; i++)
     {
       if (processes[i].state != 0 && processes[i].state != 4)
       {
         printf("%d:%-7s ", processes[i].pid, state_string[processes[i].state]);
+        fprintf(f_out, "%d:%-7s ", processes[i].pid, state_string[processes[i].state]);
       }
     }
     printf("\n");
+    fprintf(f_out, "\n");
 
     if (running_pid != -1 && processes[running_pid].remain_cpu == 0)
     {
-      finished_count += 1;
+      terminated_count += 1;
       processes[running_pid].state = 4;
       running_pid = -1;
     }
@@ -408,28 +434,23 @@ void sjf(struct Process *processes, int count, char *out_filename)
       running_pid = -1;
     }
 
-    for (int i = 0; i < count; i++)
-    {
-      if (processes[i].state == 3 && processes[i].remain_io == 0)
-      {
-        ready_queue[que_count] = processes[i].pid;
-        que_count += 1;
-        processes[i].state = 1;
-      }
-    }
-
     time++;
   }
 
+  // print analytics
   printf("\nFinishing time: %d\n", time);
-  printf("CPU utilization: %.2f\n", (float)((time + 1 - idle_time) / (time + 1)));
+  printf("CPU utilization: %.2f\n", (float)(time + 1 - idle_time) / (time + 1));
+  fprintf(f_out, "\nFinishing time: %d\n", time);
+  fprintf(f_out, "CPU utilization: %.2f\n", (float)(time + 1 - idle_time) / (time + 1));
 
   for (int i = 0; i < count; i++)
   {
     printf("Turnaround process %d: %d\n", processes[i].pid, processes[i].turn_around);
+    fprintf(f_out, "Turnaround process %d: %d\n", processes[i].pid, processes[i].turn_around);
   }
 
   free(ready_queue);
+  fclose(f_out);
 }
 
 int main(int argc, char *argv[])
