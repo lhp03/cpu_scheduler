@@ -54,8 +54,11 @@ void fcfs(struct Process *processes, int count, char *out_filename)
   int *ready_queue = (int *)malloc(sizeof(int) * count);
   int que_count = 0;
 
-  while (1)
+  while (time < 10)
   {
+    if(finished_count == count) {
+      break;
+    }
     // check arrival
     for (int i = 0; i < count; i++)
     {
@@ -73,14 +76,7 @@ void fcfs(struct Process *processes, int count, char *out_filename)
       shiftQueue(ready_queue, &que_count);
       processes[running_pid].state = 2;
     }
-    else
-    {
-      if (processes[running_pid].remain_cpu == processes[running_pid].cpu_time / 2)
-      {
-        processes[running_pid].state = 3;
-        running_pid = -1;
-      }
-    }
+    
 
     if (running_pid == -1)
     {
@@ -89,7 +85,49 @@ void fcfs(struct Process *processes, int count, char *out_filename)
     else
     {
       // running process exist
+      //cpu burst
+      processes[running_pid].remain_cpu -= 1;
     }
+
+    //io burst
+    for(int i =0; i < count; i++) {
+      if(processes[i].state == 3) {
+        processes[i].remain_io -= 1;
+      }
+    }
+
+    printf("%d ", time);
+    for(int i = 0; i < count; i++) {
+      if(processes[i].state != 0 && processes[i].state != 4) {
+        printf("%d:%s ", processes[i].pid, state_string[processes[i].state]);
+      }
+    }
+    printf("\n");
+
+    if(running_pid != -1 && processes[running_pid].remain_cpu == processes[running_pid].cpu_time / 2) {
+      processes[running_pid].state = 3;
+      ready_queue[count] = running_pid;
+      count += 1;
+      running_pid = -1;
+    } else if (running_pid != -1 && processes[running_pid].remain_cpu == 0) {
+      finished_count+= 1;
+      processes[running_pid].state =4;
+      running_pid = -1;
+    } else {
+      for(int i =0; i < count; i++) {
+        if(processes[i].state == 3 && processes[i].remain_io == 0) {
+          ready_queue[que_count] = processes[i].pid;
+          que_count++;
+          processes[i].state = 1;
+        }
+      }
+    }
+
+
+
+    time++;
+
+
   }
 }
 
